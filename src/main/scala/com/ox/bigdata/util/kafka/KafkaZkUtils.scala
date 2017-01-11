@@ -3,7 +3,6 @@ package com.ox.bigdata.util.kafka
 import java.util
 
 import com.ox.bigdata.util.log.LogSupport
-import zkutils
 import org.apache.spark.streaming.kafka.OffsetRange
 import org.apache.zookeeper.ZooKeeper
 
