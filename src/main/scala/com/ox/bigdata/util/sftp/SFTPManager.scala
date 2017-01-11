@@ -15,7 +15,6 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
 
   protected def getChannelSFTP(channel: SFTPChannel): ChannelSftp = {
     val sftpDetails: java.util.Map[String, String] = new java.util.HashMap[String, String]()
-    // 设置主机ip，端口，用户名，密码
     sftpDetails.put(SFTPConstants.SFTP_REQ_HOST, server)
     sftpDetails.put(SFTPConstants.SFTP_REQ_USERNAME, user)
     sftpDetails.put(SFTPConstants.SFTP_REQ_PASSWORD, password)

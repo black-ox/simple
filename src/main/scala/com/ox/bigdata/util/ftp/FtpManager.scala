@@ -64,7 +64,7 @@ class FtpManager(val server: String, val port: String, val user: String, val pas
         ftp.setFileType(FTP.BINARY_FILE_TYPE)
         ftp.enterLocalPassiveMode()
         ftp.setBufferSize(1024 * 1024)
-        ftp.setDataTimeout(timeout) //设置数据连接超时,在非正常断链情况下可抛出超时异常,避免长时间阻塞
+        ftp.setDataTimeout(timeout)
         download(ftp, src, dst)
     }
   }
@@ -78,7 +78,7 @@ class FtpManager(val server: String, val port: String, val user: String, val pas
         ftp.setFileType(FTP.BINARY_FILE_TYPE)
         ftp.enterLocalPassiveMode()
         ftp.setBufferSize(1024 * 1024)
-        ftp.setDataTimeout(timeout) //设置数据连接超时,在非正常断链情况下可抛出超时异常,避免长时间阻塞
+        ftp.setDataTimeout(timeout)
         src.map(e => {
           var index = e.lastIndexOf('/')
           if (index == -1) index = e.lastIndexOf('\\')
@@ -207,7 +207,7 @@ class FtpManager(val server: String, val port: String, val user: String, val pas
     }
 
     val reply = ftp.getReplyCode
-    ftp.addProtocolCommandListener(new PrintCommandListener(new PrintWriter(System.out))) //打开调试信息
+    ftp.addProtocolCommandListener(new PrintCommandListener(new PrintWriter(System.out))) //Open the debug info
     if (!FTPReply.isPositiveCompletion(reply)) {
       throw new ConnectionException("Ftp server refused connection")
     }
@@ -220,10 +220,11 @@ class FtpManager(val server: String, val port: String, val user: String, val pas
   }
 
   /**
-    * 递归遍历和下载指定目录下面指定后缀名的文件
-    * relativePath 相对路径，用来记录在ftp内当前目录的相对路径。在调用时该参数设置�?"，后面递归调用时会设置为非空值�?   * srcDir 需要遍历的目录
-    * baseDstDir 目标目录，必须是绝对路径
-    * ext 文件的扩展名
+    *
+    * relativePath
+    * srcDir
+    * baseDstDir
+    * ext
     */
   private def downloadByExt(ftp: FTPClient, relativePath: String, srcDir: String, baseDstDir: String, ext: String): Unit = {
     val array = srcDir.split("/").toList
@@ -260,8 +261,8 @@ class FtpManager(val server: String, val port: String, val user: String, val pas
           case "." => remote.drop(1)
           case _ => remote
         }
-        //ftp.deleteFile(s"./$remoteWithoutPoint")//删除文件（非文件夹）
-        //ftp.rmd(s"./$remoteWithoutPoint")//删除空文件夹
+        //ftp.deleteFile(s"./$remoteWithoutPoint")//delete file (nonempty dir)
+        //ftp.rmd(s"./$remoteWithoutPoint")//delete dir
         isDeleteDirectorySuccess = deleteDirectory(ftp, remoteWithoutPoint)
         ftp.noop() // check that control connection is working OK
         ftp.logout()
@@ -324,7 +325,7 @@ private class LoginException(message: String) extends Exception(message)
 object FtpManager {
   val FTP_DATA_TIMEOUT_DEFAULT = 1000 * 30
 
-  //数据连接,默认超时30秒
+  //time out 30 sec
   def apply(ftpInfo: FtpServerInfo): FtpManager = new SFTPManager(ftpInfo.ip, ftpInfo.port, ftpInfo.user, ftpInfo.password)
 
 }

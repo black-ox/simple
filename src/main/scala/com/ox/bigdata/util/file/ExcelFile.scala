@@ -59,17 +59,17 @@ class ExcelFile(filename: String) extends LogSupport with Using {
   }
 
   /**
-   * 删除excel文件
+   * delete excel file
    */
   def delete(): Unit = {
-    val result = new File(filename).delete()
+    new File(filename).delete()
     //log.debug(s"delete excel file [$filename]. isSuccess = $result")
   }
 
   /**
-   * 将excel文件内容读入到一个StringTable中
+   * read excel into a StringTable
    *
-   * @return excel 文件内容
+   * @return excel content
    */
   def read(): List[List[String]] = {
     val file = new File(filename)
@@ -133,7 +133,7 @@ class ExcelFile(filename: String) extends LogSupport with Using {
   }
 
   /**
-   * 将excle 表格解析成List 集合
+   * transform excel tables into List
  *
    * @param fileName
    * @return List[ List[String] ]

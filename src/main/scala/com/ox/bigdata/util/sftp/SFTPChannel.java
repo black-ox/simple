@@ -23,21 +23,21 @@ public class SFTPChannel {
             ftpPort = Integer.valueOf(port);
         }
 
-        JSch jsch = new JSch(); // 创建JSch对象
-        session = jsch.getSession(ftpUserName, ftpHost, ftpPort); // 根据用户名，主机ip，端口获取一个Session对象
+        JSch jsch = new JSch();
+        session = jsch.getSession(ftpUserName, ftpHost, ftpPort);
         //       LOG.debug("Session created.");
         if (ftpPassword != null) {
-            session.setPassword(ftpPassword); // 设置密码
+            session.setPassword(ftpPassword);
         }
         Properties config = new Properties();
         config.put("StrictHostKeyChecking", "no");
-        session.setConfig(config); // 为Session对象设置properties
-        session.setTimeout(timeout); // 设置timeout时间
-        session.connect(); // 通过Session建立链接
+        session.setConfig(config);
+        session.setTimeout(timeout);
+        session.connect();
         //       LOG.debug("Session connected.");
 
         //       LOG.debug("Opening Channel.");
-        channel = session.openChannel("sftp"); // 打开SFTP通道
+        channel = session.openChannel("sftp");
         channel.connect();
         //       LOG.debug("Connected successfully to ftpHost = " + ftpHost + ",as ftpUserName = " + ftpUserName
         //               + ", returning: " + channel);

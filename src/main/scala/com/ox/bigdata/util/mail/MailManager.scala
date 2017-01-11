@@ -99,7 +99,7 @@ object MailManager {
   def apply(mailServerInfo: MailServerInfo): MailManager = new MailManager(mailServerInfo) with GetTransport
 }
 
-//为了可测试性，增加此函数
+//for debug
 trait GetTransport {
   this: MailManager =>
   def getTransport(): Transport = {

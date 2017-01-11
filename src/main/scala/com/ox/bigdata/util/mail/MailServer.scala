@@ -28,19 +28,10 @@ class MailServer(mailServerInfo: MailServerInfo) {
     else None
   }
 
-  // 邮件会话对象
+  // mail session
   def getMailSession: Session = getAuthenticator match {
     case Some(authenticator) => Session.getInstance(getSystemProperties, authenticator)
     case None => Session.getDefaultInstance(getSystemProperties)
   }
-
-  //  private lazy val mailServerInfo = MailServerInfo(
-  //    VmaxConfig.serviceaddressConfig.getString("stmpServerInfo.mailServerHost"),
-  //    VmaxConfig.serviceaddressConfig.getString("stmpServerInfo.mailServerPort"),
-  //    VmaxConfig.serviceaddressConfig.getString("stmpServerInfo.isAuthenticated"),
-  //    VmaxConfig.serviceaddressConfig.getString("stmpServerInfo.isEnabledDebugMod"),
-  //    VmaxConfig.serviceaddressConfig.getString("stmpServerInfo.userName"),
-  //    VmaxConfig.serviceaddressConfig.getString("stmpServerInfo.passWord")
-  //  )
 }
 

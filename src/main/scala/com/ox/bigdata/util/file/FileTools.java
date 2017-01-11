@@ -138,7 +138,7 @@ public class FileTools {
     }
 
     /**
-     * 拷贝文件
+     * copy file
      */
     public static boolean CopyFile(InputStream src, OutputStream tgt) {
         try {

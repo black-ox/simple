@@ -18,25 +18,22 @@ trait UnZipFile extends LogSupport with Using {
   private var FILE_BUF_SIZE: Int = 2048
 
   /**
-   * @param src       源文件
-   * @param dstPath   目标文件夹
-   * @param fNameKeys 需要解压的文件名关键字集合
-   * @return 解压文件路径集合,key-文件关键字，contents-对应文件
-   */
+    * @param src
+    * @param dstPath
+    * @param fNameKeys
+    * @return file path unzip, key-file，contents-file
+    */
   def unzipZip(src: File, dstPath: File, fNameKeys: List[String]): Option[Map[String, File]] = {
-    //检查文件是否存在
     if (!src.isFile) {
       LOG.error("Source file " + src.getAbsolutePath + " is not a file.")
       return None
     }
 
-    //检查文件是否为zip类型
     if (!src.getName.toLowerCase.endsWith(FILE_EXT_ZIP)) {
       LOG.error("Source file " + src.getAbsolutePath + " is not a zip file.")
       return None
     }
 
-    //创建临时文件
     if (!FileTools.CreateFolder(dstPath)) {
       LOG.error("Failed to create folder " + dstPath.getAbsolutePath)
       return None
@@ -45,23 +42,20 @@ trait UnZipFile extends LogSupport with Using {
     val zip: ZipFile = new ZipFile(src)
     val entries = JavaConversions.enumerationAsScalaIterator(zip.getEntries).toList
 
-    //提取文件
     val result = entries.filter(x => {
       val name = new File(x.getName).getName
-      (!x.isDirectory) && (getMatchKey(name, fNameKeys)).nonEmpty
+      (!x.isDirectory) && getMatchKey(name, fNameKeys).nonEmpty
     }).map(x => {
       val zipEntry = new File(x.getName)
       val key = getMatchKey(zipEntry.getName, fNameKeys).get
 
-      //创建该文件必需的父文件夹
       val tgtFile = new File(dstPath, zipEntry.getPath())
       val parentFolder = tgtFile.getParentFile()
       if (!FileTools.CreateFolderWithParent(parentFolder)) {
-        LOG.error("Failure happpen when create output directory:" + parentFolder.getAbsolutePath())
+        LOG.error("failed to create output directory:" + parentFolder.getAbsolutePath())
         return None
       }
 
-      // 解压文件
       using(zip.getInputStream(x)) {
         in =>
           using(new FileOutputStream(tgtFile)) {
@@ -82,34 +76,30 @@ trait UnZipFile extends LogSupport with Using {
   }
 
   /**
-   * 解压tar文件
-   *
-   * @param src       源文件
-   * @param dstPath       目标文件夹
-   * @param fNameKeys 需要解压的文件名关键字集合
-   * @return 解压文件路径集合
-   */
+    * tar file
+    *
+    * @param src
+    * @param dstPath
+    * @param fNameKeys
+    * @return path set
+    */
 
   private def unzipTar(src: File, dstPath: File, fNameKeys: List[String]): Option[Map[String, File]] = {
-    //检查文件是否存在
     if (!src.isFile) {
-      LOG.error("Source file " + src.getAbsolutePath + " is not a file.")
+      LOG.error("source file " + src.getAbsolutePath + " is not a file.")
       return None
     }
 
-    //检查文件是否为zip类型
     if (!src.getName.toLowerCase.endsWith(FILE_EXT_TAR)) {
-      LOG.error("Source file " + src.getAbsolutePath + " is not a zip file.")
+      LOG.error("source file " + src.getAbsolutePath + " is not a zip file.")
       return None
     }
 
-    //创建临时文件
     if (!FileTools.CreateFolder(dstPath)) {
-      LOG.error("Failed to create folder " + dstPath.getAbsolutePath)
+      LOG.error("failed to create folder " + dstPath.getAbsolutePath)
       return None
     }
 
-    //解压文件
     var unzipFiles: Option[Map[String, File]] = None
     using(new TarInputStream(new FileInputStream(src))) {
       tarIn => {
@@ -120,34 +110,30 @@ trait UnZipFile extends LogSupport with Using {
   }
 
   /**
-   * 解压tar.gz文件
-   *
-   * @param src       源文件
-   * @param dstPath       目标文件夹
-   * @param fNameKeys 需要解压的文件名关键字集合
-   * @return 解压文件路径集合
-   */
+    * tar.gz file
+    *
+    * @param src
+    * @param dstPath
+    * @param fNameKeys
+    * @return paths set
+    */
 
   def unzipTarGz(src: File, dstPath: File, fNameKeys: List[String]): Option[Map[String, File]] = {
-    //检查文件是否存在
     if (!src.isFile) {
-      LOG.error("Source file " + src.getAbsolutePath + " is not a file.")
+      LOG.error("source file " + src.getAbsolutePath + " is not a file.")
       return None
     }
 
-    //检查文件是否为zip类型
     if (!src.getName.toLowerCase.endsWith(FILE_EXT_TAR_GZ)) {
-      LOG.error("Source file " + src.getAbsolutePath + " is not a zip file.")
+      LOG.error("source file " + src.getAbsolutePath + " is not a zip file.")
       return None
     }
 
-    //创建临时文件
     if (!FileTools.CreateFolder(dstPath)) {
-      LOG.error("Failed to create folder " + dstPath.getAbsolutePath)
+      LOG.error("failed to create folder " + dstPath.getAbsolutePath)
       return None
     }
 
-    //解压文件
     var unzipFiles: Option[Map[String, File]] = None
     using(new TarInputStream(new GZIPInputStream(new FileInputStream(src)))) {
       tarIn => {
@@ -158,32 +144,28 @@ trait UnZipFile extends LogSupport with Using {
   }
 
   /**
-   * 解压gz文件
-   *
-   * @param src       源文件
-   * @param dstPath       目标文件夹
-   * @return 解压文件路径
-   */
+    * gz file
+    *
+    * @param src
+    * @param dstPath
+    * @return paths set
+    */
   def unzipGZ(src: File, dstPath: File): Option[File] = {
-    //检查文件是否存在
     if (!src.isFile) {
-      LOG.error("Source file " + src.getAbsolutePath + " is not a file.")
+      LOG.error("source file " + src.getAbsolutePath + " is not a file.")
       return None
     }
 
-    //检查文件是否为zip类型
     if (!src.getName.toLowerCase.endsWith(FILE_EXT_GZ)) {
-      LOG.error("Source file " + src.getAbsolutePath + " is not a zip file.")
+      LOG.error("source file " + src.getAbsolutePath + " is not a zip file.")
       return None
     }
 
-    //创建临时文件
     if (!FileTools.CreateFolder(dstPath)) {
-      LOG.error("Failed to create folder " + dstPath.getAbsolutePath)
+      LOG.error("failed to create folder " + dstPath.getAbsolutePath)
       return None
     }
 
-    //解压文件
     var unzipFile: Option[File] = None
     using(new GZIPInputStream(new FileInputStream(src))) {
       gzIn => {
@@ -200,36 +182,33 @@ trait UnZipFile extends LogSupport with Using {
   }
 
   /**
-   * 解压tar文件
- *
-   * @param tarIn tar输入流
-   * @param keys 文件关键字
-   * @param tgtFolder 目标路径
-   * @return key-解压文件,contents-解压文件路径
-   */
+    * tar file
+    *
+    * @param tarIn     tar inputStream
+    * @param keys
+    * @param tgtFolder
+    * @return key-file,contents-filepath
+    */
 
   private def processEntry(tarIn: TarInputStream, keys: List[String], tgtFolder: File): Option[Map[String, File]] = {
     val entry = tarIn.getNextEntry
 
     if (entry == null) {
       Some(Map[String, File]())
-    }else {
+    } else {
       val zipEntry = new File(entry.getName)
       val key = getMatchKey(zipEntry.getName, keys)
 
-      //文件夹或不包含key的文件直接跳过
       if (!(zipEntry.isFile && key.nonEmpty)) {
         processEntry(tarIn, keys, tgtFolder)
       }
       else {
-        //创建该文件必需的父文件夹
-        val tgtFile = new File(tgtFolder, zipEntry.getPath())
-        val parentFolder = tgtFile.getParentFile()
+        val tgtFile = new File(tgtFolder, zipEntry.getPath)
+        val parentFolder = tgtFile.getParentFile
         if (!FileTools.CreateFolderWithParent(parentFolder)) {
-          LOG.error("Failure happpen when create output directory:" + parentFolder.getAbsolutePath())
+          LOG.error("failed to create output directory:" + parentFolder.getAbsolutePath)
           None
-        }else{
-          // 解压文件
+        } else {
           var untarSuccess = true
           using(new FileOutputStream(tgtFile)) {
             out =>
@@ -255,12 +234,12 @@ trait UnZipFile extends LogSupport with Using {
 
 
   /**
-   * 获取文件名匹配的主键
- *
-   * @param filename 文件名
-   * @param fileKeys 待匹配主键
-   * @return 匹配的主键
-   */
+    * get the Primary key match the file name
+    *
+    * @param filename
+    * @param fileKeys
+    * @return Primary key
+    */
   def getMatchKey(filename: String, fileKeys: List[String]): Option[String] = {
     fileKeys.find(x => x.r.findFirstIn(filename).nonEmpty)
   }

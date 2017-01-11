@@ -18,7 +18,7 @@ trait Configer extends LogSupport {
    * set the config file, file names without path
    *
    * get files from configHome, files in resources dir will be load too.
-   * note：在前面的文件会覆盖后面的文件的相同key的配置值
+   * note：the key values load in the first file will cover the key values load after
    *
    * @param files
    */
