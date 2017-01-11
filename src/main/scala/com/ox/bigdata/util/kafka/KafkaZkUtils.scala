@@ -6,17 +6,19 @@ import com.ox.bigdata.util.log.LogSupport
 import org.apache.spark.streaming.kafka.OffsetRange
 import org.apache.zookeeper.ZooKeeper
 
+import scala.collection.Seq
+
 
 object KafkaZkUtils extends LogSupport {
 
   def usingZooKeeper(zkHosts: String)(op: ZooKeeper => Unit): Unit = {
-    val zk = zkutils.connect(zkHosts, 30000, null)
+    val zk = ZkUtils.connect(zkHosts, 30000, null)
     try {
       op(zk)
     } catch {
       case e: Exception => LOG.error("ZooKeeper actions failed ！" + e.printStackTrace())
     } finally {
-      zkutils.close(zk)
+      ZkUtils.close(zk)
     }
   }
 
@@ -30,7 +32,7 @@ object KafkaZkUtils extends LogSupport {
         if (zk != null) {
           val offset_path = base_path + "/" + group + "/" + offset.topic + "_" + offset.partition
           val value = offset.fromOffset + "_" + offset.untilOffset
-          if (zk.exists(offset_path, false) == null) zkutils.createNodes(zk, offset_path, true)
+          if (zk.exists(offset_path, false) == null) ZkUtils.createNodes(zk, offset_path, true)
           zk.setData(offset_path, value.getBytes, -1)
           ret = true
         }
@@ -38,9 +40,9 @@ object KafkaZkUtils extends LogSupport {
     ret
   }
 
-  def getChildren(zk_hosts: String, path: String): util.List[String] = {
-
-    var result: util.List[String] = null
+  def getChildren(zk_hosts: String, path: String): Seq[String] = {
+    import scala.collection.JavaConversions._
+    var result: Seq[String] = Nil
     usingZooKeeper(zk_hosts) {
       zk =>
         result = zk.getChildren(path, false)
@@ -77,7 +79,7 @@ object KafkaZkUtils extends LogSupport {
       zk =>
         if (zk != null) {
           if (zk.exists(path, false) == null) {
-            zkutils.createNodes(zk, path, true)
+            ZkUtils.createNodes(zk, path, true)
           }
           zk.setData(path, value.getBytes, -1)
           ret = true

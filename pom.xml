@@ -33,7 +33,7 @@
         </developer>
     </developers>
 
-    <groupId>com.github.blackox</groupId>
+    <groupId>com.github.black-ox</groupId>
     <artifactId>simple</artifactId>
     <version>0.0.1</version>
     <packaging>jar</packaging>

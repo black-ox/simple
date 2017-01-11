@@ -71,20 +71,16 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
     res
   }
 
-  override def upload(localStream: InputStream, remote: String): Boolean = {
-    var res = false
+  override def upload(localStream: InputStream, remote: String): Unit = {
     usingSFTP {
       channelSFTP =>
         MakeRemoteDirectory(channelSFTP, remote)
         channelSFTP.put(localStream, remote, ChannelSftp.OVERWRITE)
-        res = true
     }
-    res
   }
 
   //download file ok
-  override def download(src: String, dst: String, timeout: Int = FtpManager.FTP_DATA_TIMEOUT_DEFAULT): Boolean = {
-    var res = false
+  override def download(src: String, dst: String, timeout: Int = FtpManager.FTP_DATA_TIMEOUT_DEFAULT): Unit = {
     usingSFTP {
       channelSFTP =>
         if (fileIsExists(channelSFTP, src)) {
@@ -97,10 +93,8 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
           val outputStream = new FileOutputStream(localFile)
           channelSFTP.get(src, outputStream)
           outputStream.close()
-          res = true
         }
     }
-    res
   }
 
   override def downloadFiles(src: List[String], dst: String, timeout: Int = FtpManager.FTP_DATA_TIMEOUT_DEFAULT): Unit = {
@@ -122,8 +116,8 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
     }
   }
 
-  override def deleteDirectory(remote: String): Boolean = {
-    var isDeleteDirectorySuccess = false
+  override def deleteDirectory(remote: String): Int = {
+    var isDeleteDirectorySuccess = -1
     usingSFTP {
       channelSFTP =>
         val remoteWithoutPoint: String = remote.take(1) match {
@@ -136,7 +130,7 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
   }
 
   //delete directory test ok
-  private def deleteDirectory(ChannelSFTP: ChannelSftp, remoteWithoutPoint: String): Boolean = {
+  private def deleteDirectory(ChannelSFTP: ChannelSftp, remoteWithoutPoint: String): Int = {
     try {
       val result = ChannelSFTP.ls(remoteWithoutPoint).toArray
       val (dirlist, filelist) = result.partition(x => x.toString.startsWith("d"))
@@ -154,12 +148,12 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
         })
         ChannelSFTP.rmdir(remoteWithoutPoint)
       }
-      true
+      0
     }
     catch {
       case _: Exception =>
         //       LOG.debug("delete Directory exception!")
-        false
+        -1
     }
   }
 
@@ -175,26 +169,20 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
   }
 
   //delete file ok
-  override def delete(pathname: String): Boolean = {
-    var res = false
+  override def delete(pathname: String): Unit = {
     usingSFTP {
       channelSFTP =>
         if (fileIsExists(channelSFTP, pathname)) {
           channelSFTP.rm(pathname)
-          res = true
         }
     }
-    res
   }
 
-  override def downloadByExt(srcDir: String, baseDstDir: String, ext: String): Boolean = {
-    var res = false
+  override def downloadByExt(srcDir: String, baseDstDir: String, ext: String): Unit = {
     usingSFTP {
       channelSFTP =>
         downloadByExt(channelSFTP, srcDir, baseDstDir, ext)
-        res = true
     }
-    res
   }
 
   private def downloadByExt(ChannelSFTP: ChannelSftp, srcDir: String, baseDstDir: String, ext: String): Unit = {
@@ -218,7 +206,7 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
   }
 
   /**
-    * download all the files in the given path and subpath with the same ext
+    * download all the files in the given path and subpaths with the same ext
     * relativePath
     * srcDir
     * baseDstDir (must be abslute path)

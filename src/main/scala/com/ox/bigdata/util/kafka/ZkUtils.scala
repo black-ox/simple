@@ -6,7 +6,7 @@ import org.apache.zookeeper.ZooKeeper.States
 import org.apache.zookeeper._
 
 
-object zkutils extends LogSupport {
+object ZkUtils extends LogSupport {
 
   private def wait(zk: ZooKeeper) {
     if (zk != null) {
@@ -149,6 +149,8 @@ object zkutils extends LogSupport {
     }
     res
   }
+
+
 
   def deleteNodes(zk: ZooKeeper, path: String): Boolean = {
     var res = false
