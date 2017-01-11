@@ -8,7 +8,7 @@ import com.jcraft.jsch.ChannelSftp
 
 class SFTPManager(server: String, port: String, user: String, password: String) extends
   FtpManager(server: String, port: String, user: String, password: String) with LogSupport {
-  // private final val LOG: Logger = Logger.getLogger(classOf[SFTPChannel].getName)
+
   protected def getChannel(): SFTPChannel = {
     new SFTPChannel()
   }
@@ -22,166 +22,128 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
     channel.getChannel(sftpDetails, 60000)
   }
 
-  // test failed
-  override def listFiles(parentPath: String): Array[String] = {
+  protected def usingSFTP(op: ChannelSftp => Unit): Unit = {
+    val channel: SFTPChannel = getChannel()
+    val channelSftp: ChannelSftp = getChannelSFTP(channel)
     try {
-      val channel: SFTPChannel = getChannel()
-      val channelSftp: ChannelSftp = getChannelSFTP(channel)
-
-      val result = channelSftp.ls(parentPath).toArray
-      val files = result.filterNot(x => x.toString.startsWith("d"))
-      val names = files.toList.map(x => x.toString.split(" ").last)
+      op(channelSftp)
+    } catch {
+      case e: Exception => LOG.error("SFTP actions failed ! :" + e.printStackTrace())
+    } finally {
       channelSftp.quit()
       channel.closeChannel()
-      val array = new Array[String](names.size)
-      names.copyToArray(array, 0)
-      array
-    }
-    catch {
-      case _: Exception =>
-        //      LOG.debug("Upload file exception!")
-        Nil.toArray
     }
   }
 
-  override def listDirectories(parentPath: String): Array[String] = {
-    try {
-      val channel: SFTPChannel = getChannel()
-      val ChannelSFTP: ChannelSftp = getChannelSFTP(channel)
-      val result = ChannelSFTP.ls(parentPath).toArray
-      ChannelSFTP.quit()
-      channel.closeChannel()
+  // test failed
+  override def listFiles(parentPath: String): Array[String] = {
+    var res: Array[String] = Nil.toArray
+    usingSFTP {
+      channelSftp =>
+        val result = channelSftp.ls(parentPath).toArray
+        val files = result.filterNot(x => x.toString.startsWith("d"))
+        res = files.toList.map(x => x.toString.split(" ").last).toArray
+    }
+    res
+  }
 
-      val directory = result.filter(x => x.toString.startsWith("d"))
-      val folderstemp = directory.toList.map(x => x.toString.split(" ").last)
-      val folders = folderstemp.filterNot(x => x == "." || x == "..")
-      val array = new Array[String](folders.size)
-      folders.copyToArray(array, 0)
-      array
+  override def listDirectories(parentPath: String): Array[String] = {
+    var res: Array[String] = Nil.toArray
+    usingSFTP {
+      ChannelSFTP =>
+        val result = ChannelSFTP.ls(parentPath).toArray
+        val directory = result.filter(x => x.toString.startsWith("d"))
+        val folderstemp = directory.toList.map(x => x.toString.split(" ").last)
+        res = folderstemp.filterNot(x => x == "." || x == "..").toArray
     }
-    catch {
-      case _: Throwable =>
-        //       LOG.debug("getDirectory exception!")
-        Nil.toArray
-    }
+    res
   }
 
   //upload file ok
   override def upload(local: String, remote: String): Boolean = {
-    try {
-      val channel: SFTPChannel = getChannel()
-      val channelSftp: ChannelSftp = getChannelSFTP(channel)
-      MakeRemoteDirectory(channelSftp, remote)
-      channelSftp.put(local, remote, ChannelSftp.OVERWRITE)
-      channelSftp.quit()
-      channel.closeChannel()
-      true
+    var res = false
+    usingSFTP {
+      channelSftp =>
+        MakeRemoteDirectory(channelSftp, remote)
+        channelSftp.put(local, remote, ChannelSftp.OVERWRITE)
+        res = true
     }
-    catch {
-      case _: Throwable =>
-        //       LOG.debug("Upload file exception!")
-        false
-    }
+    res
   }
 
-  override def upload(localStream: InputStream, remote: String): Unit = {
-    try {
-      val channel: SFTPChannel = getChannel()
-      val channelSFTP: ChannelSftp = getChannelSFTP(channel)
-      val remotepath = MakeRemoteDirectory(channelSFTP, remote)
-      val filename = remote.substring(remote.lastIndexOf("/"))
-      channelSFTP.put(localStream, remote, ChannelSftp.OVERWRITE)
-      channelSFTP.quit()
-      channelSFTP.quit()
-      channel.closeChannel()
+  override def upload(localStream: InputStream, remote: String): Boolean = {
+    var res = false
+    usingSFTP {
+      channelSFTP =>
+        MakeRemoteDirectory(channelSFTP, remote)
+        channelSFTP.put(localStream, remote, ChannelSftp.OVERWRITE)
+        res = true
     }
-    catch {
-      case _: Throwable =>
-      //        LOG.debug("Upload file exception!")
-    }
+    res
   }
 
   //download file ok
-  override def download(src: String, dst: String, timeout: Int = FtpManager.FTP_DATA_TIMEOUT_DEFAULT): Unit = {
-    try {
-      val channel: SFTPChannel = getChannel()
-      val channelSFTP: ChannelSftp = getChannelSFTP(channel)
-      if (fileIsExists(channelSFTP, src)) {
-        var index = src.lastIndexOf('/')
-        if (index == -1) index = src.lastIndexOf('\\')
-        val fileName = src.substring(index + 1, src.length)
-        val localFile = new File(dst + "/" + fileName)
-        if (!localFile.getParentFile.exists)
-          localFile.getParentFile.mkdirs
-        val outputStream = new FileOutputStream(localFile)
-        channelSFTP.get(src, outputStream)
-        outputStream.close()
-      }
-      channelSFTP.quit()
-      channel.closeChannel()
-    }
-    catch {
-      case _: Exception =>
-      //        LOG.debug("Download file exception!")
-    }
-  }
-
-  override def downloadFiles(src: List[String], dst: String, timeout: Int = FtpManager.FTP_DATA_TIMEOUT_DEFAULT): Unit = {
-    try {
-      val channel: SFTPChannel = getChannel()
-      val channelSFTP: ChannelSftp = getChannelSFTP(channel)
-      src.map(e => {
-        if (fileIsExists(channelSFTP, e)) {
-          var index = e.lastIndexOf('/')
-          if (index == -1) index = e.lastIndexOf('\\')
-          val fileName = e.substring(index + 1, e.length)
+  override def download(src: String, dst: String, timeout: Int = FtpManager.FTP_DATA_TIMEOUT_DEFAULT): Boolean = {
+    var res = false
+    usingSFTP {
+      channelSFTP =>
+        if (fileIsExists(channelSFTP, src)) {
+          var index = src.lastIndexOf('/')
+          if (index == -1) index = src.lastIndexOf('\\')
+          val fileName = src.substring(index + 1, src.length)
           val localFile = new File(dst + "/" + fileName)
           if (!localFile.getParentFile.exists)
             localFile.getParentFile.mkdirs
-          val is = new FileOutputStream(localFile)
-          channelSFTP.get(e, is)
-          is.close()
+          val outputStream = new FileOutputStream(localFile)
+          channelSFTP.get(src, outputStream)
+          outputStream.close()
+          res = true
         }
-      })
-      channelSFTP.quit()
-      channel.closeChannel()
     }
-    catch {
-      case _: Throwable =>
-      //        LOG.debug("downloadFiles file exception!")
+    res
+  }
+
+  override def downloadFiles(src: List[String], dst: String, timeout: Int = FtpManager.FTP_DATA_TIMEOUT_DEFAULT): Unit = {
+    usingSFTP {
+      channelSFTP =>
+        for (elem <- src) {
+          if (fileIsExists(channelSFTP, elem)) {
+            var index = elem.lastIndexOf('/')
+            if (index == -1) index = elem.lastIndexOf('\\')
+            val fileName = elem.substring(index + 1, elem.length)
+            val localFile = new File(dst + "/" + fileName)
+            if (!localFile.getParentFile.exists)
+              localFile.getParentFile.mkdirs
+            val os = new FileOutputStream(localFile)
+            channelSFTP.get(elem, os)
+            os.close()
+          }
+        }
     }
   }
 
-  override def deleteDirectory(remote: String): Int = {
-    try {
-      val channel: SFTPChannel = getChannel()
-      val channelSFTP: ChannelSftp = getChannelSFTP(channel)
-      var isDeleteDirectorySuccess: Int = 0
-      val remoteWithoutPoint: String = remote.take(1) match {
-        case "." => remote.drop(1)
-        case _ => remote
-      }
-      isDeleteDirectorySuccess = deleteDirectory(channelSFTP, remoteWithoutPoint)
-      channelSFTP.quit()
-      channel.closeChannel()
-      isDeleteDirectorySuccess
+  override def deleteDirectory(remote: String): Boolean = {
+    var isDeleteDirectorySuccess = false
+    usingSFTP {
+      channelSFTP =>
+        val remoteWithoutPoint: String = remote.take(1) match {
+          case "." => remote.drop(1)
+          case _ => remote
+        }
+        isDeleteDirectorySuccess = deleteDirectory(channelSFTP, remoteWithoutPoint)
     }
-    catch {
-      case _: Throwable =>
-        //      LOG.debug("delete Directory exception!")
-        -1
-    }
+    isDeleteDirectorySuccess
   }
 
   //delete directory test ok
-  private def deleteDirectory(ChannelSFTP: ChannelSftp, remoteWithoutPoint: String): Int = {
+  private def deleteDirectory(ChannelSFTP: ChannelSftp, remoteWithoutPoint: String): Boolean = {
     try {
       val result = ChannelSFTP.ls(remoteWithoutPoint).toArray
       val (dirlist, filelist) = result.partition(x => x.toString.startsWith("d"))
       val folderstemp = dirlist.toList.map(x => x.toString.split(" ").last)
       val folders = folderstemp.filterNot(x => x == "." || x == "..")
       val filenames = filelist.toList.map(x => x.toString.split(" ").last)
-      if (!filenames.isEmpty)
+      if (filenames.nonEmpty)
         filenames.foreach(f => ChannelSFTP.rm(s"/$remoteWithoutPoint/$f"))
       if (folders.isEmpty)
         ChannelSFTP.rmdir(s"/$remoteWithoutPoint")
@@ -192,59 +154,47 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
         })
         ChannelSFTP.rmdir(remoteWithoutPoint)
       }
-      0
+      true
     }
     catch {
-      case _: Throwable =>
+      case _: Exception =>
         //       LOG.debug("delete Directory exception!")
-        -1
+        false
     }
   }
 
   //delete foldor ok
-  def deletefolder(folder: String): Unit = {
-    try {
-      val channel: SFTPChannel = getChannel();
-      val channelSFTP: ChannelSftp = getChannelSFTP(channel);
-      channelSFTP.rmdir(folder)
-      channelSFTP.quit()
-      channel.closeChannel()
+  def deletefolder(folder: String): Boolean = {
+    var res = false
+    usingSFTP {
+      channelSFTP =>
+        channelSFTP.rmdir(folder)
+        res = true
     }
-    catch {
-      case _: Throwable =>
-      //       LOG.debug("delete folder  exception!")
-    }
+    res
   }
 
   //delete file ok
-  override def delete(pathname: String): Unit = {
-    try {
-      val channel: SFTPChannel = getChannel()
-      val channelSFTP: ChannelSftp = getChannelSFTP(channel)
-      if (fileIsExists(channelSFTP, pathname)) {
-        channelSFTP.rm(pathname)
-      }
-      channelSFTP.quit()
-      channel.closeChannel()
+  override def delete(pathname: String): Boolean = {
+    var res = false
+    usingSFTP {
+      channelSFTP =>
+        if (fileIsExists(channelSFTP, pathname)) {
+          channelSFTP.rm(pathname)
+          res = true
+        }
     }
-    catch {
-      case _: Exception =>
-      //       LOG.debug("delete file exception!")
-    }
+    res
   }
 
-  override def downloadByExt(srcDir: String, baseDstDir: String, ext: String): Unit = {
-    try {
-      val channel: SFTPChannel = getChannel()
-      val channelSFTP: ChannelSftp = getChannelSFTP(channel)
-      downloadByExt(channelSFTP, srcDir, baseDstDir, ext)
-      channelSFTP.quit()
-      channel.closeChannel()
+  override def downloadByExt(srcDir: String, baseDstDir: String, ext: String): Boolean = {
+    var res = false
+    usingSFTP {
+      channelSFTP =>
+        downloadByExt(channelSFTP, srcDir, baseDstDir, ext)
+        res = true
     }
-    catch {
-      case _: Exception =>
-      //        LOG.debug("downloadByExt file exception!")
-    }
+    res
   }
 
   private def downloadByExt(ChannelSFTP: ChannelSftp, srcDir: String, baseDstDir: String, ext: String): Unit = {
@@ -255,12 +205,10 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
       val folders = folderstemp.filterNot(x => x == "." || x == "..")
       val filenames = direction._2.toList.map(x => x.toString.split(" ").last)
 
-      val file = new File(baseDstDir + "/test")
-      if (!file.getParentFile.exists)
-        file.getParentFile.mkdirs
-      filenames.map(x => if (x.endsWith(ext))
-        ChannelSFTP.get(s"$srcDir/$x", s"$baseDstDir/$x"))
-
+      for (file <- filenames) {
+        if (file.endsWith(ext))
+          ChannelSFTP.get(s"$srcDir/$file", s"$baseDstDir/$file")
+      }
       folders.foreach(x => downloadByExt(ChannelSFTP, s"$srcDir/$x", s"$baseDstDir/$x", ext))
     }
     catch {
@@ -270,11 +218,11 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
   }
 
   /**
-    * 递归遍历和下载指定目录下面指定后缀名的文件
-    * relativePath 相对路径，用来记录在ftp内当前目录的相对路径。在调用时该参数设置为""，后面递归调用时会设置为非空值。
-    * srcDir 需要遍历的目录
-    * baseDstDir 目标目录，必须是绝对路径
-    * ext 文件的扩展名
+    * download all the files in the given path and subpath with the same ext
+    * relativePath
+    * srcDir
+    * baseDstDir (must be abslute path)
+    * ext [file ext]
     */
   private def MakeRemoteDirectory(ChannelSFTP: ChannelSftp, remote: String): String = {
     try {
@@ -312,10 +260,7 @@ class SFTPManager(server: String, port: String, user: String, password: String) 
       val result = channelSFTP.ls(parentPath).toArray
       val files = result.filterNot(x => x.toString.startsWith("d"))
       val filenames = files.toList.map(x => x.toString.split(" ").last)
-      if (filenames.contains(filename))
-        true
-      else
-        false
+      filenames.contains(filename)
     }
     catch {
       case _: Exception =>
