@@ -12,13 +12,13 @@ import scala.collection.Seq
 object KafkaZkUtils extends LogSupport {
 
   def usingZooKeeper(zkHosts: String)(op: ZooKeeper => Unit): Unit = {
-    val zk = ZkUtils.connect(zkHosts, 30000, null)
+    val zk = SimpleUtils.connect(zkHosts, 30000, null)
     try {
       op(zk)
     } catch {
       case e: Exception => LOG.error("ZooKeeper actions failed ！" + e.printStackTrace())
     } finally {
-      ZkUtils.close(zk)
+      SimpleUtils.close(zk)
     }
   }
 
@@ -32,7 +32,7 @@ object KafkaZkUtils extends LogSupport {
         if (zk != null) {
           val offset_path = base_path + "/" + group + "/" + offset.topic + "_" + offset.partition
           val value = offset.fromOffset + "_" + offset.untilOffset
-          if (zk.exists(offset_path, false) == null) ZkUtils.createNodes(zk, offset_path, true)
+          if (zk.exists(offset_path, false) == null) SimpleUtils.createNodes(zk, offset_path, true)
           zk.setData(offset_path, value.getBytes, -1)
           ret = true
         }
@@ -79,7 +79,7 @@ object KafkaZkUtils extends LogSupport {
       zk =>
         if (zk != null) {
           if (zk.exists(path, false) == null) {
-            ZkUtils.createNodes(zk, path, true)
+            SimpleUtils.createNodes(zk, path, true)
           }
           zk.setData(path, value.getBytes, -1)
           ret = true
