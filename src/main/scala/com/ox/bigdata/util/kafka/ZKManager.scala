@@ -2,26 +2,29 @@ package com.ox.bigdata.util.kafka
 
 import com.ox.bigdata.util.log.LogSupport
 import org.I0Itec.zkclient.ZkClient
-import org.I0Itec.zkclient.exception.{ZkException, ZkInterruptedException, ZkNoNodeException}
+import org.I0Itec.zkclient.exception.{ZkException, ZkInterruptedException, ZkMarshallingError, ZkNoNodeException}
+import org.I0Itec.zkclient.serialize.ZkSerializer
+import org.apache.zookeeper.KeeperException
 import org.apache.zookeeper.data.Stat
 
 import scala.collection.{Map, Seq, mutable}
 
-/*
-copied from kafka.utils.ZKUtils
-* */
+/**
+  * copied from kafka.utils.ZKUtils
+**/
+
 object ZKManager extends LogSupport {
 
-  protected val ConsumersPath = "/consumers"
-  protected val BrokerIdsPath = "/brokers/ids"
-  protected val BrokerTopicsPath = "/brokers/topics"
-  protected val TopicConfigPath = "/config/topics"
-  protected val TopicConfigChangesPath = "/config/changes"
-  protected val ControllerPath = "/controller"
-  protected val ControllerEpochPath = "/controller_epoch"
-  protected val ReassignPartitionsPath = "/admin/reassign_partitions"
-  protected val DeleteTopicsPath = "/admin/delete_topics"
-  protected val PreferredReplicaLeaderElectionPath = "/admin/preferred_replica_election"
+  val ConsumersPath = "/consumers"
+  val BrokerIdsPath = "/brokers/ids"
+  val BrokerTopicsPath = "/brokers/topics"
+  val TopicConfigPath = "/config/topics"
+  val TopicConfigChangesPath = "/config/changes"
+  val ControllerPath = "/controller"
+  val ControllerEpochPath = "/controller_epoch"
+  val ReassignPartitionsPath = "/admin/reassign_partitions"
+  val DeleteTopicsPath = "/admin/delete_topics"
+  val PreferredReplicaLeaderElectionPath = "/admin/preferred_replica_election"
 
   def getTopicPath(topic: String): String = BrokerTopicsPath + "/" + topic
 
@@ -32,14 +35,18 @@ object ZKManager extends LogSupport {
   def getDeleteTopicPath(topic: String): String = DeleteTopicsPath + "/" + topic
 
   def usingZkClient(zk_hosts: String)(op: ZkClient => Unit): Unit = {
-    val zk = new ZkClient(zk_hosts, 6000)
+    val zk = createZkClient(zk_hosts)
     try {
       op(zk)
     } catch {
-      case e: Exception => LOG.error(s"ZooKeeper actions failed ！zookeeper hosts => $zk_hosts" + e.printStackTrace())
+      case e: Exception => LOG.error(s"ZooKeeper Client actions failed ！zookeeper hosts => $zk_hosts" + e.printStackTrace())
     } finally {
       zk.close()
     }
+  }
+
+  def createZkClient(zk_hosts: String, sessionTimeout: Int = 30*1000, connectionTimeout: Int = 30*1000): ZkClient = {
+    new ZkClient(zk_hosts, sessionTimeout, connectionTimeout, ZKStringSerializer)
   }
 
   /**
@@ -57,7 +64,7 @@ object ZKManager extends LogSupport {
     * if any ZooKeeper exception occurred
     * @throws RuntimeException
     * if any other exception occurs
-    */
+  **/
 
   def createPersistent(zk_hosts: String, path: String, createParents: Boolean = true): Unit = {
     usingZkClient(zk_hosts) {
@@ -78,7 +85,8 @@ object ZKManager extends LogSupport {
     * if any ZooKeeper exception occurred
     * @throws RuntimeException
     * if any other exception occurs
-    */
+  **/
+
   def createEphemeral(zk_hosts: String, path: String): Unit = {
     usingZkClient(zk_hosts) {
       zkClient =>
@@ -86,14 +94,75 @@ object ZKManager extends LogSupport {
     }
   }
 
+  def writeData(zk_hosts: String, path: String, data: String): Unit = {
+    usingZkClient(zk_hosts) {
+      zkClient =>
+        if (!zkClient.exists(path))
+          zkClient.createPersistent(path,true)
+        zkClient.writeData(path, data)
+    }
+  }
+
+  def readData(zk_hosts: String, path: String): (String, Stat) = {
+    var data = ""
+    val stat: Stat = new Stat()
+    usingZkClient(zk_hosts) {
+      zkClient =>
+        data = zkClient.readData(path, stat)
+    }
+    (data, stat)
+  }
+
+  def deletePath(zk_hosts: String, path: String): Boolean = {
+    var res = false
+    usingZkClient(zk_hosts) {
+      zkClient =>
+        res = zkClient.delete(path)
+    }
+    res
+  }
+
+  def deletePathRecursive(zk_hosts: String, path: String): Boolean = {
+    var res = false
+    usingZkClient(zk_hosts) {
+      zkClient =>
+        res = zkClient.deleteRecursive(path)
+    }
+    res
+  }
+
   def getChildren(zk_hosts: String, path: String): Seq[String] = {
     import scala.collection.JavaConversions._
     var children: Seq[String] = Nil
     usingZkClient(zk_hosts) {
       zkClient =>
-        children = zkClient.getChildren(path)
+        if(zkClient.exists(path))
+          children = zkClient.getChildren(path)
     }
     children
+  }
+
+  /**
+    * Check if the given path exists
+  **/
+  def pathExists(zk_hosts: String, path: String): Boolean = {
+    var isExists = false
+    usingZkClient(zk_hosts) {
+      zkClient =>
+        isExists = zkClient.exists(path)
+    }
+    isExists
+  }
+
+  def getConsumersInGroup(zk_hosts: String, group: String): Seq[String] = {
+    var res: Seq[String] = Nil
+    usingZkClient(zk_hosts) {
+      zkClient =>
+        val dirs = new ZKGroupDirs(group)
+        import scala.collection.JavaConversions._
+        res = zkClient.getChildren(dirs.consumerRegistryDir)
+    }
+    res
   }
 
   /**
@@ -114,16 +183,16 @@ object ZKManager extends LogSupport {
     * Arrays larger than this will cause a KeeperException to be thrown.
     *
     * @param path
-    *                the path of the node
+    * the path of the node
     * @param data
-    *                the data to set
+    * the data to set
     * @param version
-    *                the expected matching version
+    * the expected matching version
     * @return the state of the node
-    * @throws InterruptedException If the server transaction is interrupted.
-    * @throws KeeperException If the server signals an error with a non-zero error code.
+    * @throws InterruptedException     If the server transaction is interrupted.
+    * @throws KeeperException          If the server signals an error with a non-zero error code.
     * @throws IllegalArgumentException if an invalid path is specified
-    */
+  **/
 
   def getPartitionsForTopics(zk_hosts: String, topics: Seq[String]): mutable.Map[String, Seq[Int]] = {
     val ret = new mutable.HashMap[String, Seq[Int]]()
@@ -174,6 +243,35 @@ object ZKManager extends LogSupport {
     dataAndStat
   }
 
+}
+
+private object ZKStringSerializer extends ZkSerializer {
+
+  @throws(classOf[ZkMarshallingError])
+  def serialize(data: Object): Array[Byte] = data.asInstanceOf[String].getBytes("UTF-8")
+
+  @throws(classOf[ZkMarshallingError])
+  def deserialize(bytes: Array[Byte]): Object = {
+    if (bytes == null)
+      null
+    else
+      new String(bytes, "UTF-8")
+  }
+}
+
+
+class ZKGroupDirs(val group: String) {
+  def consumerDir = ZKManager.ConsumersPath
+
+  def consumerGroupDir = consumerDir + "/" + group
+
+  def consumerRegistryDir = consumerGroupDir + "/ids"
+}
+
+class ZKGroupTopicDirs(group: String, topic: String) extends ZKGroupDirs(group) {
+  def consumerOffsetDir = consumerGroupDir + "/offsets/" + topic
+
+  def consumerOwnerDir = consumerGroupDir + "/owners/" + topic
 }
 
 

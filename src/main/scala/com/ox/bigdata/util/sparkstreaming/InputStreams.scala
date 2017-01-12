@@ -52,11 +52,9 @@ object InputStreams extends LogSupport {
     kafka_stream.foreachRDD(rdd => {
       val offsetArr = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
       for (offset <- offsetArr) {
-        val ret = KafkaZkUtils.writeOffset(zk_list, offset_zk_path, consumer_group, offset)
-        if (!ret) {
-          LOG.warn("Unable to write offset : group_id = " + consumer_group + ", offset = " + offset)
-        } else {
-          LOG.info("Write offset : group_id = " + consumer_group + ", offset = " + offset)
+        KafkaZkUtils.writeOffset(zk_list, offset_zk_path, consumer_group, offset) match {
+          case true => LOG.info("Write offset : group_id = " + consumer_group + ", offset = " + offset)
+          case _ => LOG.warn("Unable to write offset : group_id = " + consumer_group + ", offset = " + offset)
         }
       }
     })
